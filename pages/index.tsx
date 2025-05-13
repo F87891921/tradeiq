@@ -1,152 +1,89 @@
-import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-type Trade = {
-  id: number
-  date: string
-  product: string
-  entry: number
-  sl: number
-  tp: number
-  certs: number
-  type: string
-  rr: string
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function Home() {
-  const [trades, setTrades] = useState<Trade[]>([])
-  const [form, setForm] = useState({
-    date: '',
-    product: '',
-    entry: '',
-    sl: '',
-    tp: '',
-    certs: '',
-    type: '',
-    rr: ''
-  })
+  const [productName, setProductName] = useState('');
+  const [iskStatus, setIskStatus] = useState(null);
+  const [selectedStrategy, setSelectedStrategy] = useState('');
 
-  async function fetchTrades() {
-    const { data, error } = await supabase.from('planned_trades').select('*').order('id', { ascending: true })
-    if (data) setTrades(data as Trade[])
-  }
+  const iskApprovedList = [
+    'NVDA VT517', 'MFL HM VT71', 'MFL EVO VT373', 'MFL SP500 VT212'
+  ];
 
-  async function addTrade() {
-    const { error } = await supabase.from('planned_trades').insert([form])
-    if (!error) {
-      fetchTrades()
-      setForm({
-        date: '',
-        product: '',
-        entry: '',
-        sl: '',
-        tp: '',
-        certs: '',
-        type: '',
-        rr: ''
-      })
+  const checkISK = () => {
+    if (iskApprovedList.includes(productName.trim())) {
+      setIskStatus(true);
+    } else {
+      setIskStatus(false);
     }
-  }
+  };
 
-  async function deleteTrade(id: number) {
-    await supabase.from('planned_trades').delete().eq('id', id)
-    fetchTrades()
-  }
-
-  useEffect(() => {
-    fetchTrades()
-  }, [])
+  const strategies = {
+    'TP + Trailing SL': {
+      why: 'Kombinerar fast vinstmål med skydd för uppsida.',
+      steps: [
+        'Sätt TP1, TP2 och TP3-nivåer i Avanza.',
+        'Sätt en initial Stop Loss (SL).',
+        'Flytta SL uppåt när priset går upp (Trailing).',
+        'Lås vinst när TP1/TP2 träffas.'
+      ]
+    },
+    'Scalp Entry': {
+      why: 'Snabba vinster på korta rörelser.',
+      steps: [
+        'Leta efter momentum via candlestick.',
+        'Lägg en snäv SL och ta vinst snabbt.',
+        'Avsluta trade inom några minuter/timmar.'
+      ]
+    }
+  };
 
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      <h2>📈 Trade IQ – Planera och spara analyserade trades</h2>
+    <div style={{ padding: '2rem', fontFamily: 'Lato, sans-serif' }}>
+      <h1>Trade IQ – ISK-koll & Strategiguide</h1>
 
-      <div style={{ marginBottom: '2rem' }}>
-        <h3>➕ Lägg till trade</h3>
-        {['date', 'product', 'entry', 'sl', 'tp', 'certs', 'type', 'rr'].map((key) => (
-          <input
-            key={key}
-            type="text"
-            placeholder={key}
-            value={(form as any)[key]}
-            onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-            style={{
-              display: 'block',
-              marginBottom: '8px',
-              padding: '8px',
-              width: '100%',
-              border: '1px solid #ccc',
-              borderRadius: '6px'
-            }}
-          />
+      {/* ISK Kontroll */}
+      <h2>1. ISK-godkännande</h2>
+      <input
+        type="text"
+        value={productName}
+        onChange={(e) => setProductName(e.target.value)}
+        placeholder="Ange produktnamn, t.ex. NVDA VT517"
+        style={{ padding: '0.5rem', width: '100%', borderRadius: '6px', border: '1px solid #ccc' }}
+      />
+      <button onClick={checkISK} style={{ marginTop: '0.5rem' }}>Kontrollera ISK</button>
+
+      {iskStatus === true && <p style={{ color: 'green' }}>✅ Produkten “{productName}” är ISK-godkänd.</p>}
+      {iskStatus === false && <p style={{ color: 'red' }}>⚠️ Produkten “{productName}” är <strong>inte</strong> ISK-godkänd.</p>}
+
+      {/* Strategiguide */}
+      <h2>2. Trade Execution Guide</h2>
+      <select
+        value={selectedStrategy}
+        onChange={(e) => setSelectedStrategy(e.target.value)}
+        style={{ padding: '0.5rem', width: '100%', borderRadius: '6px', border: '1px solid #ccc' }}>
+        <option value="">Välj strategi</option>
+        {Object.keys(strategies).map((key) => (
+          <option key={key} value={key}>{key}</option>
         ))}
-        <button
-          onClick={addTrade}
-          style={{
-            backgroundColor: 'green',
-            color: 'white',
-            border: 'none',
-            padding: '10px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Spara trade
-        </button>
-      </div>
+      </select>
 
-      <div>
-        <h3>📋 Planerade trades</h3>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={{ borderBottom: '1px solid #ccc' }}>Datum</th>
-              <th style={{ borderBottom: '1px solid #ccc' }}>Produkt</th>
-              <th style={{ borderBottom: '1px solid #ccc' }}>Entry</th>
-              <th style={{ borderBottom: '1px solid #ccc' }}>SL</th>
-              <th style={{ borderBottom: '1px solid #ccc' }}>TP</th>
-              <th style={{ borderBottom: '1px solid #ccc' }}>Certifikat</th>
-              <th style={{ borderBottom: '1px solid #ccc' }}>Typ</th>
-              <th style={{ borderBottom: '1px solid #ccc' }}>RR</th>
-              <th style={{ borderBottom: '1px solid #ccc' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {trades.map((trade) => (
-              <tr key={trade.id}>
-                <td>{trade.date}</td>
-                <td>{trade.product}</td>
-                <td>{trade.entry}</td>
-                <td>{trade.sl}</td>
-                <td>{trade.tp}</td>
-                <td>{trade.certs}</td>
-                <td>{trade.type}</td>
-                <td>{trade.rr}</td>
-                <td>
-                  <button
-                    onClick={() => deleteTrade(trade.id)}
-                    style={{
-                      backgroundColor: 'red',
-                      color: 'white',
-                      border: 'none',
-                      padding: '4px 8px',
-                      cursor: 'pointer',
-                      borderRadius: '4px'
-                    }}
-                  >
-                    Ta bort
-                  </button>
-                </td>
-              </tr>
+      {selectedStrategy && (
+        <div style={{ marginTop: '1rem' }}>
+          <p><strong>Strategi:</strong> {selectedStrategy}</p>
+          <p><strong>Varför:</strong> {strategies[selectedStrategy].why}</p>
+          <p><strong>Steg-för-steg i Avanza:</strong></p>
+          <ul>
+            {strategies[selectedStrategy].steps.map((step, index) => (
+              <li key={index}>{step}</li>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </ul>
+        </div>
+      )}
     </div>
-  )
+  );
 }
