@@ -1,6 +1,10 @@
-// pages/index.tsx
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 type Trade = {
   id: number
@@ -11,14 +15,12 @@ type Trade = {
   tp: number
   certs: number
   type: string
-  rr: number
+  rr: string
 }
 
 export default function Home() {
   const [trades, setTrades] = useState<Trade[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const [newTrade, setNewTrade] = useState({
+  const [form, setForm] = useState({
     date: '',
     product: '',
     entry: '',
@@ -26,94 +28,125 @@ export default function Home() {
     tp: '',
     certs: '',
     type: '',
-    rr: '',
+    rr: ''
   })
 
-  // Hämta trades från Supabase
-  const fetchTrades = async () => {
+  async function fetchTrades() {
     const { data, error } = await supabase.from('planned_trades').select('*').order('id', { ascending: true })
-    if (!error && data) {
-      setTrades(data)
+    if (data) setTrades(data as Trade[])
+  }
+
+  async function addTrade() {
+    const { error } = await supabase.from('planned_trades').insert([form])
+    if (!error) {
+      fetchTrades()
+      setForm({
+        date: '',
+        product: '',
+        entry: '',
+        sl: '',
+        tp: '',
+        certs: '',
+        type: '',
+        rr: ''
+      })
     }
-    setLoading(false)
+  }
+
+  async function deleteTrade(id: number) {
+    await supabase.from('planned_trades').delete().eq('id', id)
+    fetchTrades()
   }
 
   useEffect(() => {
     fetchTrades()
   }, [])
 
-  // Lägg till ny trade
-  const addTrade = async () => {
-    const { error } = await supabase.from('planned_trades').insert([
-      {
-        date: newTrade.date,
-        product: newTrade.product,
-        entry: parseFloat(newTrade.entry),
-        sl: parseFloat(newTrade.sl),
-        tp: parseFloat(newTrade.tp),
-        certs: parseInt(newTrade.certs),
-        type: newTrade.type,
-        rr: parseFloat(newTrade.rr),
-      },
-    ])
-    if (!error) {
-      setNewTrade({ date: '', product: '', entry: '', sl: '', tp: '', certs: '', type: '', rr: '' })
-      fetchTrades()
-    }
-  }
-
   return (
-    <main style={{ padding: 40, fontFamily: 'sans-serif' }}>
-      <h1>Trade IQ – Planerade trades</h1>
+    <div style={{ fontFamily: 'sans-serif', padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
+      <h2>📈 Trade IQ – Planera och spara analyserade trades</h2>
 
-      {loading ? (
-        <p>Laddar...</p>
-      ) : (
-        <>
-          <table style={{ width: '100%', marginBottom: 40, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th>Datum</th>
-                <th>Produkt</th>
-                <th>Entry</th>
-                <th>SL</th>
-                <th>TP</th>
-                <th>Certifikat</th>
-                <th>Typ</th>
-                <th>RR</th>
+      <div style={{ marginBottom: '2rem' }}>
+        <h3>➕ Lägg till trade</h3>
+        {['date', 'product', 'entry', 'sl', 'tp', 'certs', 'type', 'rr'].map((key) => (
+          <input
+            key={key}
+            type="text"
+            placeholder={key}
+            value={(form as any)[key]}
+            onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+            style={{
+              display: 'block',
+              marginBottom: '8px',
+              padding: '8px',
+              width: '100%',
+              border: '1px solid #ccc',
+              borderRadius: '6px'
+            }}
+          />
+        ))}
+        <button
+          onClick={addTrade}
+          style={{
+            backgroundColor: 'green',
+            color: 'white',
+            border: 'none',
+            padding: '10px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Spara trade
+        </button>
+      </div>
+
+      <div>
+        <h3>📋 Planerade trades</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ borderBottom: '1px solid #ccc' }}>Datum</th>
+              <th style={{ borderBottom: '1px solid #ccc' }}>Produkt</th>
+              <th style={{ borderBottom: '1px solid #ccc' }}>Entry</th>
+              <th style={{ borderBottom: '1px solid #ccc' }}>SL</th>
+              <th style={{ borderBottom: '1px solid #ccc' }}>TP</th>
+              <th style={{ borderBottom: '1px solid #ccc' }}>Certifikat</th>
+              <th style={{ borderBottom: '1px solid #ccc' }}>Typ</th>
+              <th style={{ borderBottom: '1px solid #ccc' }}>RR</th>
+              <th style={{ borderBottom: '1px solid #ccc' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((trade) => (
+              <tr key={trade.id}>
+                <td>{trade.date}</td>
+                <td>{trade.product}</td>
+                <td>{trade.entry}</td>
+                <td>{trade.sl}</td>
+                <td>{trade.tp}</td>
+                <td>{trade.certs}</td>
+                <td>{trade.type}</td>
+                <td>{trade.rr}</td>
+                <td>
+                  <button
+                    onClick={() => deleteTrade(trade.id)}
+                    style={{
+                      backgroundColor: 'red',
+                      color: 'white',
+                      border: 'none',
+                      padding: '4px 8px',
+                      cursor: 'pointer',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    Ta bort
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {trades.map((trade) => (
-                <tr key={trade.id}>
-                  <td>{trade.date}</td>
-                  <td>{trade.product}</td>
-                  <td>{trade.entry}</td>
-                  <td>{trade.sl}</td>
-                  <td>{trade.tp}</td>
-                  <td>{trade.certs}</td>
-                  <td>{trade.type}</td>
-                  <td>{trade.rr}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h2>Lägg till ny trade</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 400, gap: 10 }}>
-            {Object.entries(newTrade).map(([key, value]) => (
-              <input
-                key={key}
-                type="text"
-                placeholder={key}
-                value={value}
-                onChange={(e) => setNewTrade({ ...newTrade, [key]: e.target.value })}
-              />
             ))}
-            <button onClick={addTrade}>Spara trade</button>
-          </div>
-        </>
-      )}
-    </main>
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
